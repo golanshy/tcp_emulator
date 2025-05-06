@@ -1,17 +1,17 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"tcp_emulator/utils"
 	"time"
 )
 
 const timeInterval = 5
-const numberOfSources = 4
-const numberOfInstancesOfEachSource = 2
+const numberOfSources = 10
+const numberOfInstancesOfEachSource = 500
 
 func main() {
 	log.Println("Starting TCP Hello World emulator")
@@ -24,10 +24,9 @@ func main() {
 	indexMap := utils.CreateIndexMap(numberOfSources, numberOfInstancesOfEachSource, points)
 	idMap := utils.CreateIdsMap(numberOfSources, numberOfInstancesOfEachSource)
 
-	conn, err := net.Dial("tcp", "localhost:8085") // Connect to the server
-	if err != nil {
-		log.Fatalf("Error connecting to server: %v", err)
-	}
+	var conn net.Conn
+	conn, err = connect()
+
 	defer func(conn net.Conn) {
 		err := conn.Close()
 		if err != nil {
@@ -35,7 +34,7 @@ func main() {
 		}
 	}(conn)
 
-	fmt.Println("Connected to server on port 8080")
+	fmt.Println("Connected to server on port 8085")
 
 	for {
 		for i := 0; i < numberOfSources*numberOfInstancesOfEachSource; i++ {
@@ -54,20 +53,48 @@ func main() {
 			_, err = conn.Write(byteArray) // Send the message to the server
 			if err != nil {
 				log.Printf("Error sending message: %v", err)
+				if strings.Contains(err.Error(), "broken pipe") {
+					conn, err = connect()
+					if err != nil {
+						log.Fatalf("Error connecting to server: %v", err)
+						return
+					}
+
+					// Resend the message post re-connection
+					_, err = conn.Write(byteArray)
+					if err != nil {
+						fmt.Printf("conn.Write success: %s", string(byteArray))
+					}
+				}
 				continue
 			}
 
-			//// Optionally, read the server's response
-			response, err := bufio.NewReader(conn).ReadString('\n')
-			if err != nil {
-				log.Printf("Error reading response: %v", err)
-				continue
-			}
-			fmt.Printf("Server response: %s", response)
+			fmt.Printf("conn.Write success: %s", string(byteArray))
 
 			indexMap[i] += timeInterval
 			time.Sleep(10 * time.Millisecond) //Optional delay. Prevents flooding the connection.
 		}
 		time.Sleep(timeInterval * time.Second)
 	}
+}
+
+func connect() (net.Conn, error) {
+
+	var conn net.Conn
+	var err error
+
+	for {
+		fmt.Println("Attempting connection to server on port 8085")
+
+		conn, err = net.Dial("tcp", "localhost:8085")
+		if err != nil {
+			log.Printf("Error connecting to server: %v", err)
+		}
+		if conn != nil {
+			break
+		}
+		time.Sleep(time.Duration(timeInterval) * time.Second)
+	}
+
+	return conn, err
 }
