@@ -4,17 +4,16 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strings"
 	"tcp_emulator/utils"
 	"time"
 )
 
-const timeInterval = 5
-const numberOfSources = 10
-const numberOfInstancesOfEachSource = 500
+const timeInterval = 1
+const numberOfSources = 2
+const numberOfInstancesOfEachSource = 5
 
 func main() {
-	log.Println("Starting TCP Hello World emulator")
+	log.Println("Starting TCP emulator")
 
 	points, err := utils.ReadData()
 	if err != nil {
@@ -25,7 +24,6 @@ func main() {
 	idMap := utils.CreateIdsMap(numberOfSources, numberOfInstancesOfEachSource)
 
 	var conn net.Conn
-	conn, err = connect()
 
 	defer func(conn net.Conn) {
 		err := conn.Close()
@@ -42,34 +40,27 @@ func main() {
 			if indexMap[i] >= len(*points) {
 				indexMap[i] = 0
 			}
-			data, err := utils.CreateDataToSend(points, idMap[i], indexMap[i], i%numberOfSources)
+			data, err := utils.CreateDataToSend(points, idMap[i], indexMap[i], i%numberOfSources+1)
 			if err != nil {
 				log.Fatal(err)
 			}
-			str := fmt.Sprintf("%s\n", string(*data))
-			fmt.Printf("Sending message: %s", str)
+			fmt.Printf("-----------------------------------\n")
+			conn, _ = connect()
+			if conn != nil {
 
-			byteArray := append(*data, '\n')
-			_, err = conn.Write(byteArray) // Send the message to the server
-			if err != nil {
-				log.Printf("Error sending message: %v", err)
-				if strings.Contains(err.Error(), "broken pipe") {
-					conn, err = connect()
-					if err != nil {
-						log.Fatalf("Error connecting to server: %v", err)
-						return
-					}
-
-					// Resend the message post re-connection
-					_, err = conn.Write(byteArray)
-					if err != nil {
-						fmt.Printf("conn.Write success: %s", string(byteArray))
-					}
+				fmt.Printf("Sending message: %s\n", string(*data))
+				_, err = conn.Write(*data) // Send the message to the server
+				if err != nil {
+					fmt.Printf("conn.Write error: %s", string(*data))
 				}
-				continue
+				fmt.Printf("Message successfully sent\n")
+				err := conn.Close()
+				if err != nil {
+					fmt.Printf("conn.Close error: %s", err.Error())
+					continue
+				}
+				fmt.Printf("Connection closed\n")
 			}
-
-			fmt.Printf("conn.Write success: %s", string(byteArray))
 
 			indexMap[i] += timeInterval
 			time.Sleep(10 * time.Millisecond) //Optional delay. Prevents flooding the connection.
@@ -84,13 +75,13 @@ func connect() (net.Conn, error) {
 	var err error
 
 	for {
-		fmt.Println("Attempting connection to server on port 8085")
-
 		conn, err = net.Dial("tcp", "localhost:8085")
 		if err != nil {
 			log.Printf("Error connecting to server: %v", err)
+			break
 		}
 		if conn != nil {
+			fmt.Println("Connected to server on port 8085")
 			break
 		}
 		time.Sleep(time.Duration(timeInterval) * time.Second)
