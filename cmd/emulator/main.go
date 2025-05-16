@@ -4,11 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"tcp_emulator/config"
 	"tcp_emulator/utils"
 	"time"
 )
+
+var messagesSent = 0
 
 func main() {
 	log.Println("Starting TCP emulator")
@@ -52,11 +55,11 @@ func main() {
 			fmt.Printf("-----------------------------------\n")
 			conn, _ = connect(cfg)
 			if conn != nil {
-
-				fmt.Printf("Sending message: %s\n", string(*data))
+				message := fmt.Sprintf("%s\n", string(*data))
+				fmt.Printf("Sending message: %s", message)
 				_, err = conn.Write(*data) // Send the message to the server
 				if err != nil {
-					fmt.Printf("conn.Write error: %s", string(*data))
+					fmt.Printf("conn.Write error: %s", message)
 				}
 				fmt.Printf("Message successfully sent\n")
 				err := conn.Close()
@@ -65,6 +68,12 @@ func main() {
 					continue
 				}
 				fmt.Printf("Connection closed\n")
+
+				messagesSent += 1
+				if messagesSent == math.MaxInt {
+					messagesSent = 0
+				}
+				log.Printf("Messages sent: %d\n", messagesSent)
 			}
 
 			indexMap[i] += cfg.Emulator.TimeInterval
